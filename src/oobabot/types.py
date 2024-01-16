@@ -64,6 +64,21 @@ class ChannelMessage(GenericMessage):
     def is_mentioned(self, user_id: int) -> bool:
         return user_id in self.mentions
 
+class GroupMessage(GenericMessage):
+   """
+   Represents a message sent in a group chat.
+   """
+   def __init__(
+        self,
+        /,
+        mentions: typing.List[int],
+        **kwargs,
+    ):
+        super().__init__(**kwargs)  # type: ignore
+        self.mentions = mentions
+
+   def is_mentioned(self, user_id: int) -> bool:
+        return user_id in self.mentions
 
 class FancyAuthor:
     """

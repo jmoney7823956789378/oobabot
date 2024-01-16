@@ -121,6 +121,57 @@ class DecideToRespond:
                 response_chance = chance
                 break
         return response_chance
+    def provide_unsolicited_reply_in_group(
+        self, our_user_id: int, message: types.GroupMessage
+    ) -> bool:
+        """
+        Returns True if we should respond to the message, even
+        though we weren't directly mentioned.
+        """
+
+        # if we're not at-mentioned but others are, don't reply
+        if message.mentions and not message.is_mentioned(our_user_id):
+            return False
+
+        # if message is empty, don't reply.  This can happen if someone
+        # posts an image or an attachment without a comment.
+        if message.is_empty():
+            return False
+
+        # if we've posted recently in this channel, there are a few
+        # other reasons we may respond.  But if we haven't, just
+        # ignore the message.
+
+        # if the admin has disabled unsolicited replies, don't reply
+        if self.disable_unsolicited_replies:
+            return False
+
+        # if we haven't posted to this channel recently, don't reply
+        response_chance = self.calc_base_chance_of_unsolicited_reply(message)
+        if response_chance == 0.0:
+            return False
+
+        # if the new message ends with a question mark, we'll respond
+        if message.body_text.endswith("?"):
+            response_chance += self.interrobang_bonus
+
+        # if the new message ends with an exclamation point, we'll respond
+        if message.body_text.endswith("!"):
+            response_chance += self.interrobang_bonus
+
+        time_since_last_mention = self.last_reply_times.time_since_last_mention(message)
+        fancy_logger.get().debug(
+            "Considering unsolicited response in channel %s after %2.0f seconds.  "
+            + "chance: %2.0f%%.",
+            message.channel_name,
+            time_since_last_mention,
+            response_chance * 100.0,
+        )
+
+        if random.random() < response_chance:
+            return True
+
+        return False
 
     def provide_unsolicited_reply_in_channel(
         self, our_user_id: int, message: types.ChannelMessage
@@ -175,41 +226,46 @@ class DecideToRespond:
         return False
 
     def should_reply_to_message(
-        self, our_user_id: int, message: types.GenericMessage
+       self, our_user_id: int, message: types.GenericMessage
     ) -> typing.Tuple[bool, bool]:
-        """
-        Returns a tuple of (should_reply, is_direct_mention).
-
-        Direct mentions are always replied to, but also, the
-        caller should log the mention later by calling log_mention().
-
-        The only reason this method doesn't to so itself is that
-        in the case of us generating a thread to reply on, the
-        channel ID we want to track will be that of the thread
-        we create, not the channel the message was posted in.
-        """
-
-        # ignore messages from other bots, out of fear of infinite loops,
-        # as well as world domination
-        if message.author_is_bot:
-            return (False, False)
-
-        # we do not want the bot to reply to itself.  This is redundant
-        # with the previous check, except it won't be if someone decides
-        # to run this under their own user token, rather than a proper
-        # bot token.
-        if message.author_id == our_user_id:
-            return (False, False)
-
-        if self.is_directly_mentioned(our_user_id, message):
-            return (True, True)
-
-        if isinstance(message, types.ChannelMessage):
-            if self.provide_unsolicited_reply_in_channel(our_user_id, message):
-                return (True, False)
-
-        # ignore anything else
-        return (False, False)
+       """
+       Returns a tuple of (should_reply, is_direct_mention).
+    
+       Direct mentions are always replied to, but also, the
+       caller should log the mention later by calling log_mention().
+    
+       The only reason this method doesn't to so itself is that
+       in the case of us generating a thread to reply on, the
+       channel ID we want to track will be that of the thread
+       we create, not the channel the message was posted in.
+       """
+    
+       # ignore messages from other bots, out of fear of infinite loops,
+       # as well as world domination
+       if message.author_is_bot:
+           return (False, False)
+    
+       # we do not want the bot to reply to itself.  This is redundant
+       # with the previous check, except it won't be if someone decides
+       # to run this under their own user token, rather than a proper
+       # bot token.
+       if message.author_id == our_user_id:
+           return (False, False)
+    
+       if self.is_directly_mentioned(our_user_id, message):
+           return (True, True)
+    
+       # Check if the message is in a group DM
+       if isinstance(message, types.GroupMessage):
+           if self.provide_unsolicited_reply_in_group(our_user_id, message):
+               return (True, False)
+    
+       if isinstance(message, types.ChannelMessage):
+           if self.provide_unsolicited_reply_in_channel(our_user_id, message):
+               return (True, False)
+    
+       # ignore anything else
+       return (False, False)
 
     def log_mention(self, channel_id: int, send_timestamp: float) -> None:
         self.last_reply_times.log_mention(channel_id, send_timestamp)

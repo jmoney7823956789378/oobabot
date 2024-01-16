@@ -32,7 +32,7 @@ def get_channel_name(channel: discord.abc.Messageable) -> str:
     if isinstance(channel, discord.DMChannel):
         return "-DM-"
     if isinstance(channel, discord.GroupChannel):
-        return "-GROUP-DM-"
+        return "-GROUP-DM- #" + str(channel.id)
     return "-Unknown-"
 
 
@@ -45,7 +45,7 @@ def sanitize_string(raw_string: str) -> str:
 
 def discord_message_to_generic_message(
     raw_message: discord.Message,
-) -> typing.Union[types.GenericMessage, types.ChannelMessage, types.DirectMessage]:
+) -> typing.Union[types.GenericMessage, types.ChannelMessage, types.DirectMessage, types.GroupMessage]:
     """
     Convert a discord message to a GenericMessage or subclass thereof
     """
@@ -58,7 +58,8 @@ def discord_message_to_generic_message(
         # impersonate both the bot and other users.  So trust bots only.
         body_text = raw_message.content
     else:
-        body_text = sanitize_string(raw_message.content)
+        body_text = raw_message.content
+        # body_text = sanitize_string(raw_message.content)
 
     generic_args = {
         "author_id": raw_message.author.id,
@@ -71,15 +72,16 @@ def discord_message_to_generic_message(
         "send_timestamp": raw_message.created_at.timestamp(),
         "reference_message_id": raw_message.reference.message_id
         if raw_message.reference
-        else "",
+        else None,
     }
     if isinstance(raw_message.channel, discord.DMChannel):
         return types.DirectMessage(**generic_args)
-    if isinstance(
+    elif isinstance(raw_message.channel, discord.GroupChannel):
+        return types.GroupMessage(mentions=[mention.id for mention in raw_message.mentions], **generic_args)
+    elif isinstance(
         raw_message.channel,
         (
             discord.TextChannel,
-            discord.GroupChannel,
             discord.Thread,
             discord.VoiceChannel,
         ),
@@ -93,7 +95,6 @@ def discord_message_to_generic_message(
         + f"unsolicited replies disabled.: {raw_message.channel}"
     )
     return types.GenericMessage(**generic_args)
-
 
 def replace_mention_ids_with_names(
     generic_message: types.GenericMessage,
