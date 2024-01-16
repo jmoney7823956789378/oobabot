@@ -155,11 +155,8 @@ def guild_user_id_to_name(
     return _replace_user_id_mention
 
 
-def get_intents() -> discord.Intents:
-    intents = discord.Intents.default()
-    intents.message_content = True
-    intents.members = True
-    return intents
+def get_intents():
+    return
 
 
 async def test_discord_token(discord_token: str) -> bool:

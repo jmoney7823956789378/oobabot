@@ -152,102 +152,116 @@ class DiscordBot(discord.Client):
             )
 
     async def on_message(self, raw_message: discord.Message) -> None:
-        """
-        Called when a message is received from Discord.
-
-        This method is called for every message that the bot can see.
-        It decides whether to respond to the message, and if so,
-        calls _handle_response() to generate a response.
-
-        :param raw_message: The raw message from Discord.
-        """
-        try:
-            message = discord_utils.discord_message_to_generic_message(raw_message)
-            should_respond, is_summon = self.decide_to_respond.should_reply_to_message(
-                self.ai_user_id, message
-            )
-            if not should_respond:
-                return
-
-            is_summon_in_public_channel = is_summon and isinstance(
-                message,
-                types.ChannelMessage,
-            )
-
-            async with raw_message.channel.typing():
-                await self._handle_response(
-                    message, raw_message, is_summon_in_public_channel
-                )
-
-        except discord.DiscordException as err:
-            fancy_logger.get().error(
-                "Exception while processing message: %s", err, exc_info=True
-            )
-
+      """
+      Called when a message is received from Discord.
+    
+      This method is called for every message that the bot can see.
+      It decides whether to respond to the message, and if so,
+      calls _handle_response() to generate a response.
+    
+      :param raw_message: The raw message from Discord.
+      """
+      try:
+         if raw_message.content == "$clearhist":
+            async for message in raw_message.channel.history(limit=1):
+                  channel_name = discord_utils.get_channel_name(raw_message.channel)
+                  user_name = raw_message.author.name
+                  fancy_logger.get().info(
+                     "$clearhist called by user '%s' in #%s",
+                     user_name,
+                     channel_name,
+                  )
+                  dummy_message = await raw_message.channel.send("Chat history reset")
+                  self.repetition_tracker.hide_messages_before(
+                     channel_id=raw_message.channel.id,
+                     message_id=dummy_message.id,
+                  )
+            return
+    
+         message = discord_utils.discord_message_to_generic_message(raw_message)
+         should_respond, is_summon = self.decide_to_respond.should_reply_to_message(
+               self.ai_user_id, message
+         )
+         if not should_respond:
+               return
+    
+         is_summon_in_public_channel = is_summon and isinstance(
+               message,
+               types.ChannelMessage,
+         )
+    
+         async with raw_message.channel.typing():
+               await self._handle_response(
+                  message, raw_message, is_summon_in_public_channel
+               )
+    
+      except discord.DiscordException as err:
+         fancy_logger.get().error(
+               "Exception while processing message: %s", err, exc_info=True
+         )
     async def _handle_response(
-        self,
-        message: types.GenericMessage,
-        raw_message: discord.Message,
-        is_summon_in_public_channel: bool,
-    ) -> None:
-        """
-        Called when we've decided to respond to a message.
+      self,
+      message: types.GenericMessage,
+      raw_message: discord.Message,
+      is_summon_in_public_channel: bool,
+      ) -> None:
+      """
+      Called when we've decided to respond to a message.
 
-        It decides if we're sending a text response, an image response,
-        or both, and then sends the response(s).
-        """
-        image_prompt = None
-        if self.image_generator is not None:
+      It decides if we're sending a text response, an image response,
+      or both, and then sends the response(s).
+      """
+      image_prompt = None
+      if self.image_generator is not None:
             # are we creating an image?
             image_prompt = self.image_generator.maybe_get_image_prompt(raw_message)
 
-        result = await self._send_text_response(
+      result = await self._send_text_response(
             message=message,
             raw_message=raw_message,
             image_requested=image_prompt is not None,
             is_summon_in_public_channel=is_summon_in_public_channel,
-        )
-        if result is None:
+      )
+      if result is None:
             # we failed to create a thread that the user could
             # read our response in, so we're done here.  Abort!
             return
-        message_task, response_channel = result
+      message_task, response_channel = result
 
-        # log the mention, now that we know the channel we
-        # want to monitor later to continue to conversation
-        if isinstance(response_channel, (discord.Thread, discord.abc.GuildChannel)):
+      # log the mention, now that we know the channel we
+      # want to monitor later to continue to conversation
+      if isinstance(response_channel, (discord.Thread, discord.abc.GuildChannel)):
             if is_summon_in_public_channel:
-                self.decide_to_respond.log_mention(
-                    response_channel.id,
-                    message.send_timestamp,
-                )
+               self.decide_to_respond.log_mention(
+                  response_channel.id,
+                  message.send_timestamp,
+               )
 
-        image_task = None
-        if self.image_generator is not None and image_prompt is not None:
-            image_task = await self.image_generator.generate_image(
-                image_prompt,
-                raw_message,
-                response_channel=response_channel,
+      image_task = None
+      if self.image_generator is not None and image_prompt is not None:
+            # Changed from 'await self.image_generator.generate_image(...)' to 'self.image_generator.generate_image(...)'
+            image_task = self.image_generator.generate_image(
+               image_prompt,
+               raw_message,
+               response_channel=response_channel,
             )
 
-        response_tasks = [
+      response_tasks = [
             task for task in [message_task, image_task] if task is not None
-        ]
-        await asyncio.wait(response_tasks)
+      ]
 
-        # there may be more than one exception, so be sure to log
-        # them all before raising either of them
-        raise_later = None
-        for task in response_tasks:
-            if task.exception() is not None:
-                fancy_logger.get().error(
-                    f"Exception while running {task.get_coro()} "
-                    + f"response: {task.exception()}",
-                    stack_info=True,
-                )
-                raise_later = task.exception()
-        if raise_later is not None:
-            raise raise_later
+      # Use asyncio.gather instead of asyncio.wait to properly handle exceptions
+      if response_tasks:
+            done, pending = await asyncio.wait(response_tasks, return_when=asyncio.ALL_COMPLETED)
+            # Check for exceptions in the tasks that have completed
+            for task in done:
+               if task.exception():
+                  fancy_logger.get().error(
+                        f"Exception while running {task.get_coro()} "
+                        + f"response: {task.exception()}",
+                        stack_info=True,
+                  )
+                  raise task.exception()
 
     async def _send_text_response(
         self,

@@ -11,7 +11,7 @@ from oobabot import fancy_logger
 from oobabot import ooba_client
 from oobabot import persona
 from oobabot import prompt_generator
-from oobabot import voice_client
+#from oobabot import voice_client
 
 
 class AudioCommands:

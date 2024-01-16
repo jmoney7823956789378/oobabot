@@ -80,9 +80,9 @@ class Settings:
     # same channel.
     TIME_VS_RESPONSE_CHANCE: typing.List[typing.Tuple[float, float]] = [
         # (seconds, base % chance of an unsolicited response)
-        (60.0, 0.90),
-        (120.0, 0.70),
-        (60.0 * 5, 0.50),
+        (120.0, 0.90),
+        (60.0 * 5, 0.70),
+        (60.0 * 7, 0.50),
     ]
 
     # increased chance of responding to a message if it ends with
@@ -91,7 +91,7 @@ class Settings:
 
     # number of times in a row that the bot will repeat itself
     # before the repetition tracker will take action
-    REPETITION_TRACKER_THRESHOLD = 1
+    REPETITION_TRACKER_THRESHOLD = 8
 
     OOBABOOGA_DEFAULT_REQUEST_PARAMS: oesp.SettingDictType = {
         "max_new_tokens": 250,
