@@ -32,7 +32,7 @@ def get_channel_name(channel: discord.abc.Messageable) -> str:
     if isinstance(channel, discord.DMChannel):
         return "-DM-"
     if isinstance(channel, discord.GroupChannel):
-        return "-GROUP-DM- #" + str(channel.id)
+        return "-GROUP-DM- #" + channel.name
     return "-Unknown-"
 
 
@@ -78,14 +78,7 @@ def discord_message_to_generic_message(
         return types.DirectMessage(**generic_args)
     elif isinstance(raw_message.channel, discord.GroupChannel):
         return types.GroupMessage(mentions=[mention.id for mention in raw_message.mentions], **generic_args)
-    elif isinstance(
-        raw_message.channel,
-        (
-            discord.TextChannel,
-            discord.Thread,
-            discord.VoiceChannel,
-        ),
-    ):
+    elif isinstance(raw_message.channel, discord.abc.GuildChannel):
         return types.ChannelMessage(
             mentions=[mention.id for mention in raw_message.mentions],
             **generic_args,

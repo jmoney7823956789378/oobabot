@@ -16,6 +16,7 @@ from oobabot import prompt_generator
 from oobabot import repetition_tracker
 from oobabot import templates
 
+client = discord.Client()
 
 class BotCommands:
     """
@@ -110,7 +111,41 @@ class BotCommands:
                         return channel
             return None
 
-
+    async def handle_command(self, command: str, raw_message: discord.Message):
+      if command == "clearhist":
+            try:
+               channel_name = discord_utils.get_channel_name(raw_message.channel)
+               user_name = raw_message.author.name
+               fancy_logger.get().info(
+                  "$clearhist called by user '%s' in #%s",
+                  user_name,
+                  channel_name,
+               )
+               dummy_message = await raw_message.channel.send("Chat history reset")
+               self.repetition_tracker.hide_messages_before(
+                  channel_id=raw_message.channel.id,
+                  message_id=dummy_message.id,
+               )
+            except Exception as e:
+               fancy_logger.get().error("Error executing $clearhist: %s", e, exc_info=True)
+      elif command.startswith("leave"):
+            try:
+               # Check if the bot is in a guild channel or group chat
+               if isinstance(raw_message.channel, discord.abc.GuildChannel):
+                  await raw_message.channel.guild.leave()
+                  fancy_logger.get().info("Bot has left the guild: %s", raw_message.channel.guild.name)
+               elif isinstance(raw_message.channel, discord.GroupChannel):
+                  await raw_message.channel.leave()
+                  fancy_logger.get().info("Bot has left the group chat")
+               else:
+                  await raw_message.channel.send("Cannot leave a direct message channel.")
+            except Exception as e:
+               fancy_logger.get().error("Error leaving: %s", e, exc_info=True)
+      
+      else:
+            fancy_logger.get().info("Command not recognized: %s", command)
+      
+      
         # @discord.app_commands.command(
         #     name="stop",
         #     description=f"Force {self.persona.ai_name} to stop typing the current message.",
