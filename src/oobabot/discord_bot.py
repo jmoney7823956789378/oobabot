@@ -378,9 +378,9 @@ class DiscordBot(discord.Client):
         # into @-pinging a large group and annoying them.
         # Only the author of the original message may be @-pinged.
         allowed_mentions = discord.AllowedMentions(
-            everyone=False,
-            users=[raw_message.author],
-            roles=False,
+            everyone=True,
+            users=True,
+            roles=True,
         )
 
         # will be set to true when we abort the response because:
