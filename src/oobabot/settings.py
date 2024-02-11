@@ -681,7 +681,49 @@ class Settings:
                 include_in_argparse=False,
             )
         )
-
+        ###########################################################
+        # Vision API Settings
+        self.vision_api_settings = oesp.ConfigSettingGroup("Vision API")
+        self.setting_groups.append(self.vision_api_settings)
+        self.vision_api_settings.add_setting(
+            oesp.ConfigSetting[str](
+               name="use_vision",
+               default="False",
+               description_lines=[
+                     textwrap.dedent(
+                           """
+                           Use the OpenAI-like Vision API to generate images.
+                           """
+                     )
+               ],
+            )
+        )
+        self.vision_api_settings.add_setting(
+            oesp.ConfigSetting[str](
+               name="vision_api_url",
+               default="http://localhost:8000/v1/chat/completions",
+               description_lines=[
+                     textwrap.dedent(
+                           """
+                           URL for the OpenAI-like Vision API. 
+                           """
+                     )
+               ],
+            )
+        )
+        self.vision_api_settings.add_setting(
+            oesp.ConfigSetting[str](
+               name="vision_api_key",
+               default="notarealkey",
+               description_lines=[
+                     textwrap.dedent(
+                           """
+                           API key for the OpenAI-like Vision API.
+                           """
+                     )
+               ],
+            )
+        )
         ###########################################################
         # Stable Diffusion Settings
 

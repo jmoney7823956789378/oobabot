@@ -32,7 +32,7 @@ def get_channel_name(channel: discord.abc.Messageable) -> str:
     if isinstance(channel, discord.DMChannel):
         return "-DM-"
     if isinstance(channel, discord.GroupChannel):
-        return "-GROUP-DM- #" + channel.name
+        return "-GROUP-DM- #" + str(channel.name)
     return "-Unknown-"
 
 
@@ -133,21 +133,38 @@ def dm_user_id_to_name(
 
     return _replace_user_id_mention
 
-
-def guild_user_id_to_name(
-    guild: discord.Guild,
+def group_user_id_to_name(
+   guild: discord.GroupChannel,
 ) -> typing.Callable[["re.Match[str]"], str]:
-    def _replace_user_id_mention(match: typing.Match[str]) -> str:
-        user_id = int(match.group(1))
-        member = guild.get_member(user_id)
-        if member is None:
-            return match.group(0)
-        display_name = member.display_name
-        if " " in display_name:
-            display_name = f'"{display_name}"'
-        return f"@{display_name}"
+   def _replace_user_id_mention(match: typing.Match[str]) -> str:
+      user_id = int(match.group(1))
+      member = None
+      for user in guild.recipients:
+         if user.id == user_id:
+            member = user
+            break
+      if member is None:
+         return match.group(0)
+      display_name = member.display_name
+      if " " in display_name:
+         display_name = f'"{display_name}"'
+      return f"@{display_name}"
 
-    return _replace_user_id_mention
+   return _replace_user_id_mention
+def guild_user_id_to_name(
+   guild: discord.Guild,
+) -> typing.Callable[["re.Match[str]"], str]:
+   def _replace_user_id_mention(match: typing.Match[str]) -> str:
+      user_id = int(match.group(1))
+      member = guild.get_member(user_id)
+      if member is None:
+         return match.group(0)
+      display_name = member.display_name
+      if " " in display_name:
+         display_name = f'"{display_name}"'
+      return f"@{display_name}"
+
+   return _replace_user_id_mention
 
 
 def get_intents():
