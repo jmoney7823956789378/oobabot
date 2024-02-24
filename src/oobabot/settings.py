@@ -84,9 +84,9 @@ class Settings:
     # same channel.
     TIME_VS_RESPONSE_CHANCE: typing.List[typing.Tuple[float, float]] = [
         # (seconds, base % chance of an unsolicited response)
-        (60.0, 0.90),
-        (120.0, 0.70),
-        (60.0 * 5, 0.50),
+        (180.0, 0.99),
+        (300.0, 0.70),
+        (60.0 * 10, 0.50),
     ]
 
     # increased chance of responding to a message if it ends with
@@ -98,10 +98,12 @@ class Settings:
     REPETITION_TRACKER_THRESHOLD = 1
 
     OOBABOOGA_DEFAULT_REQUEST_PARAMS: oesp.SettingDictType = {
-        "max_new_tokens": 250,
+        "max_tokens": 250,
         "do_sample": True,
         "temperature": 1.3,
-        "top_p": 0.1,
+        "min_temp": 0.2,
+        "max_temp": 1.8,
+        "min_p": 0.1,
         "typical_p": 1,
         "epsilon_cutoff": 0,  # In units of 1e-4
         "eta_cutoff": 0,  # In units of 1e-4
@@ -123,7 +125,7 @@ class Settings:
         "truncation_length": 2048,
         "ban_eos_token": False,
         "skip_special_tokens": True,
-        "stopping_strings": [],
+        "stop": [],
     }
 
     # set default negative prompts to make it more difficult
