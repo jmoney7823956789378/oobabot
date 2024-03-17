@@ -180,21 +180,22 @@ class DiscordBot(discord.Client):
             if self.use_vision:
                 if should_respond and raw_message.attachments:
                     for attachment in raw_message.attachments:
-                        if attachment.content_type and attachment.content_type.startswith('image/'):
-                            try:
-                                # Create a BytesIO buffer
-                                buffer = io.BytesIO()
-                                # Save the attachment to the buffer
-                                await attachment.save(buffer)
-                                buffer.seek(0)  # Move to the start of the buffer
-                                # Encode the image in base64
-                                image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-                                # Now pass the base64-encoded image to the vision function
-                                description = await vision.get_image_description(image_base64, vision_api_url=self.vision_api_url, vision_api_key=self.vision_api_key)
-                                if description:
-                                    image_descriptions.append(description)
-                            except Exception as e:
-                                fancy_logger.get().error("Error processing image: %s", e, exc_info=True)
+                        async with raw_message.channel.typing():
+                            if attachment.content_type and attachment.content_type.startswith('image/'):
+                                try:
+                                    # Create a BytesIO buffer
+                                    buffer = io.BytesIO()
+                                    # Save the attachment to the buffer
+                                    await attachment.save(buffer)
+                                    buffer.seek(0)  # Move to the start of the buffer
+                                    # Encode the image in base64
+                                    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+                                    # Now pass the base64-encoded image to the vision function
+                                    description = await vision.get_image_description(image_base64, vision_api_url=self.vision_api_url, vision_api_key=self.vision_api_key)
+                                    if description:
+                                        image_descriptions.append(description)
+                                except Exception as e:
+                                    fancy_logger.get().error("Error processing image: %s", e, exc_info=True)
 
             # If there are image descriptions, append them to the message content
             if image_descriptions:
