@@ -3,7 +3,7 @@
 Main bot class.  Contains Discord-specific code that can't
 be easily extracted into a cross-platform library.
 """
-
+import paramiko
 import asyncio
 import typing
 import discord
@@ -574,24 +574,65 @@ class DiscordBot(discord.Client):
     ) -> typing.Optional[discord.Message]:
         response = ""
         last_message = None
+        stop_processing = False  # Initialize the stop_processing flag
+        
         async for token in response_iterator:
+            if stop_processing:
+                break  # Break out of the loop if stop_processing is True
+            
             if "" == token:
                 continue
-
+            
             response += token
             (response, abort_response) = self._filter_immersion_breaking_lines(response)
+            if '<shell>' in response and '</shell>' in response:
+                stop_processing = True 
+                pre_command_message = response.split('<shell>')[0].strip()
+                command = response.split('<shell>')[1].split('</shell>')[0].strip()
+                post_command_message = response.split('</shell>')[1].strip()
+                # Execute the SSH command
+                ssh_host = 'sandbox.lan'
+                ssh_username = 'sandbox'
+                ssh_password = 'sandbox'
+                timeout_duration = 3
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                try:
+                    ssh.connect(ssh_host, username=ssh_username, password=ssh_password)
+                    timeout_command = f"timeout {timeout_duration} {command}" 
+                    stdin, stdout, stderr = ssh.exec_command(timeout_command)
+                    await asyncio.sleep(timeout_duration + 1)
+                    output = stdout.read().decode().strip()
+                    if not output:
+                        output = "No command output."
+                    error_output = stderr.read().decode().strip()
+                    if len(output) > 900:
+                        output = output[:900] + "... (output truncated)"
+                    if len(error_output) > 900:
+                        error_output = error_output[:300] + "... (error output truncated)"
 
-            # if we are aborting a response, we want to at least post
-            # the valid parts, so don't abort quite yet.
+                    if not output and not error_output:  # No output might indicate the command was terminated
+                        output = "Command terminated due to timeout."
+                    command_response = f"<shell>{command}</shell>\n```Output:\n{output}```"
+                    if error_output:
+                        command_response += f"```Error: {error_output}```"
+                    response = f"{pre_command_message}\n{command_response}\n{post_command_message}"
+                except Exception as e:
+                    response = f"{pre_command_message}\n<shell>{command}</shell> Failed to execute command on remote host: {e}\n{post_command_message}"
+                finally:
+                    ssh.close()
+                    asyncio.sleep(1)
+                    ssh.connect()
 
+
+            
+            if abort_response:
+                break  # Abort the response if necessary
+
+            # Send or update the last message
             if last_message is None:
                 if not response:
-                    # we don't want to send an empty message
                     continue
-
-                # when we send the first message, we don't want to send a notification,
-                # as it will only include the first token of the response.  This will
-                # not be very useful to anyone.
                 last_message = await response_channel.send(
                     response,
                     allowed_mentions=allowed_mentions,
@@ -607,12 +648,6 @@ class DiscordBot(discord.Client):
                 )
                 last_message.content = response
 
-            # we want to abort the response only after we've sent any valid
-            # messages, and potentially removed any partial immersion-breaking
-            # lines that we posted when they were in the process of being received.
-            if abort_response:
-                break
-
             this_response_stat.log_response_part()
 
         if last_message is not None:
@@ -622,6 +657,7 @@ class DiscordBot(discord.Client):
             )
 
         return last_message
+
 
     def _filter_immersion_breaking_lines(
     self, text: str
