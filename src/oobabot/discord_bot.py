@@ -5,6 +5,7 @@ be easily extracted into a cross-platform library.
 """
 import paramiko
 import asyncio
+import aiohttp
 import typing
 import discord
 import base64
@@ -586,46 +587,16 @@ class DiscordBot(discord.Client):
             response += token
             (response, abort_response) = self._filter_immersion_breaking_lines(response)
             if '<shell>' in response and '</shell>' in response:
-                stop_processing = True 
+                print("FOUND SHELL COMMAND!")
                 pre_command_message = response.split('<shell>')[0].strip()
                 command = response.split('<shell>')[1].split('</shell>')[0].strip()
                 post_command_message = response.split('</shell>')[1].strip()
-                # Execute the SSH command
-                ssh_host = 'sandbox.lan'
-                ssh_username = 'sandbox'
-                ssh_password = 'sandbox'
-                timeout_duration = 3
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                try:
-                    ssh.connect(ssh_host, username=ssh_username, password=ssh_password)
-                    timeout_command = f"timeout {timeout_duration} {command}" 
-                    stdin, stdout, stderr = ssh.exec_command(timeout_command)
-                    await asyncio.sleep(timeout_duration + 1)
-                    output = stdout.read().decode().strip()
-                    if not output:
-                        output = "No command output."
-                    error_output = stderr.read().decode().strip()
-                    if len(output) > 900:
-                        output = output[:900] + "... (output truncated)"
-                    if len(error_output) > 900:
-                        error_output = error_output[:300] + "... (error output truncated)"
+                
+                
+                # Schedule the command execution without waiting for it to complete
+                asyncio.create_task(self.reset_sandbox())
+                response = self.execute_sandbox_command(command, pre_command_message, post_command_message)
 
-                    if not output and not error_output:  # No output might indicate the command was terminated
-                        output = "Command terminated due to timeout."
-                    command_response = f"<shell>{command}</shell>\n```Output:\n{output}```"
-                    if error_output:
-                        command_response += f"```Error: {error_output}```"
-                    response = f"{pre_command_message}\n{command_response}\n{post_command_message}"
-                except Exception as e:
-                    response = f"{pre_command_message}\n<shell>{command}</shell> Failed to execute command on remote host: {e}\n{post_command_message}"
-                finally:
-                    ssh.close()
-                    asyncio.sleep(1)
-                    ssh.connect()
-
-
-            
             if abort_response:
                 break  # Abort the response if necessary
 
@@ -657,6 +628,59 @@ class DiscordBot(discord.Client):
             )
 
         return last_message
+
+    def execute_sandbox_command(self, command: str, pre_command_message: str, post_command_message: str) -> str:
+        ssh_host = 'sandbox.lan'
+        ssh_username = 'sandbox'
+        ssh_password = 'sandbox'
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        response = f"{pre_command_message}\n"
+        try:
+            ssh.connect(ssh_host, username=ssh_username, password=ssh_password)
+
+            stdin, stdout, stderr = ssh.exec_command(command)
+
+            output = stdout.read().decode().strip()
+            error_output = stderr.read().decode().strip()
+            # Process and truncate the output if necessary
+            if len(output) > 900:
+                output = output[:900] + "... (output truncated)"
+            if len(error_output) > 900:
+                error_output = error_output[:300] + "... (error output truncated)"
+            
+            # Construct the command response including any output or error information
+            command_response = f"<shell>{command}</shell>\n```Output:\n{output}```"
+            if error_output:
+                command_response += f"```Error: {error_output}```"
+            response += command_response
+        except Exception as e:
+            # Handle any exceptions that occurred during command execution or connection
+            response += f"<shell>{command}</shell> Failed to execute command on remote host: {e}"
+        finally:
+            # Always close the SSH connection in the finally block
+            ssh.close()
+
+        # Append the post-command message and return the full response
+        response += f"\n{post_command_message}"
+        return response
+
+        
+    async def reset_sandbox(self):
+        await asyncio.sleep(5)  # Wait for 10 seconds before starting the reset
+        url = "https://proxmoxhost:8006/api2/json/nodes/proxmoxhost/lxc/15239/snapshot/clean2/rollback?start=1"
+        headers = {
+            "Authorization": "Bearer PVEAPIToken=reset-sandbox@pam!sandbox=11111111-1111-1111-1111-111111111"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, verify_ssl=False) as response:
+                if response.status == 200:
+                    print("Sandbox reset successfully")
+                else:
+                    response_text = await response.text()
+                    print(f"Failed to reset sandbox: HTTP Status {response.status}, Response: {response_text}")
+
 
 
     def _filter_immersion_breaking_lines(
