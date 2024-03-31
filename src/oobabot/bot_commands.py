@@ -148,14 +148,17 @@ class BotCommands:
                 channel = await get_messageable(interaction)
                 if channel is None or isinstance(channel, discord.TextChannel):
                     await discord_utils.fail_interaction(
-                        interaction, f"{self.persona.ai_name} may only speak in threads"
+                        interaction,
+                        f"{self.persona.ai_name} may only speak in threads"
                     )
                     return
 
+            channel_name = discord_utils.get_channel_name(channel)
             fancy_logger.get().debug(
-                "/say called by user '%s' in channel #%d",
+                "/%s called by user '%s' in channel #%s",
+                interaction.command.name,
                 interaction.user.name,
-                interaction.channel_id,
+                channel_name,
             )
             # this will cause the bot to monitor the channel
             # and consider unsolicited responses
@@ -179,16 +182,18 @@ class BotCommands:
                 await discord_utils.fail_interaction(interaction)
                 return
 
+            channel_name = discord_utils.get_channel_name(channel)
+            fancy_logger.get().debug(
+                "/%s called by user '%s' in channel #%s",
+                interaction.command.name,
+                interaction.user.name,
+                channel_name,
+            )
+
             # find the current message in this channel
             # tell the Repetition Tracker to hide messages
             # before this message
             async for message in channel.history(limit=1):
-                channel_name = discord_utils.get_channel_name(channel)
-                fancy_logger.get().info(
-                    "/lobotomize called by user '%s' in #%s",
-                    interaction.user.name,
-                    channel_name,
-                )
                 self.repetition_tracker.hide_messages_before(
                     channel_id=channel.id,
                     message_id=message.id,
