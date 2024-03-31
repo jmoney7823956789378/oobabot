@@ -184,6 +184,7 @@ As of 0.1.6, the bot now supports slash commands:
 |---------------|------------------|
 | **`/lobotomize`** | make the bot forget everything in the channel before the command is run |
 | **`/say "message"`** | speak as the bot |
+| **`/regenerate`** | delete and regenerate the bot's last message |
 
 Oobabot doesn't add any restrictions on who can run these commands, but luckily Discord does!  You can find this inside Discord by visiting "Server Settings" -> Integrations -> Bots and Apps -> hit the icon which looks like [/] next to your bot
 

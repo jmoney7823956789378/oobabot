@@ -130,6 +130,46 @@ class BotCommands:
             return
 
         @discord.app_commands.command(
+            name="regenerate",
+            description=f"Delete and regenerate {self.persona.ai_name}'s last message."
+        )
+        async def regenerate(interaction: discord.Interaction):
+            channel = await get_messageable(interaction)
+            if channel is None:
+                await discord_utils.fail_interaction(interaction)
+                return
+
+            channel_name = discord_utils.get_channel_name(channel)
+            fancy_logger.get().debug(
+                "/%s called by user '%s' in channel #%s",
+                interaction.command.name,
+                interaction.user.name,
+                channel_name,
+            )
+
+            history_limit = 100
+            bot_last_message = None
+            user_last_message = None
+
+            async for message in channel.history(limit=history_limit):
+                if bot_last_message and message.author.id != client.user.id:
+                    user_last_message = message
+                    break
+                if message.author.id == client.user.id and not bot_last_message:
+                    bot_last_message = message
+
+            if bot_last_message and user_last_message:
+                await interaction.response.defer(ephemeral=True, thinking=False)
+                await bot_last_message.delete()
+                client.dispatch("message", user_last_message)
+                await interaction.delete_original_response()
+            else:
+                await discord_utils.fail_interaction(
+                    interaction,
+                    "Can't find my last message in the last {history_limit} messages."
+                )
+
+        @discord.app_commands.command(
             name="say",
             description=f"Force {self.persona.ai_name} to say the provided message.",
         )
@@ -220,6 +260,7 @@ class BotCommands:
         tree.add_command(lobotomize)
         tree.add_command(say)
         tree.add_command(stop)
+        tree.add_command(regenerate)
 
         if self.audio_commands is not None:
             self.audio_commands.add_commands(tree)
