@@ -130,6 +130,34 @@ class BotCommands:
             return
 
         @discord.app_commands.command(
+            name="poke",
+            description=f"Prompt {self.persona.ai_name} to write a response to the last message, if posted by a user."
+        )
+        async def poke(interaction: discord.Interaction):
+            channel = await get_messageable(interaction)
+            if channel is None:
+                await discord_utils.fail_interaction(interaction)
+                return
+
+            channel_name = discord_utils.get_channel_name(channel)
+            fancy_logger.get().debug(
+                "/%s called by user '%s' in channel #%s",
+                interaction.command.name,
+                interaction.user.name,
+                channel_name,
+            )
+
+            async for message in channel.history(limit=1):
+                if message.author.id == client.user.id:
+                    return await discord_utils.fail_interaction(
+                    interaction,
+                    "I can't reply to my own messages.",
+                )
+                await interaction.response.defer(ephemeral=True, thinking=False)
+                client.dispatch("message", message)
+                return await interaction.delete_original_response()
+
+        @discord.app_commands.command(
             name="regenerate",
             description=f"Delete and regenerate {self.persona.ai_name}'s last message."
         )
@@ -260,6 +288,7 @@ class BotCommands:
         tree.add_command(lobotomize)
         tree.add_command(say)
         tree.add_command(stop)
+        tree.add_command(poke)
         tree.add_command(regenerate)
 
         if self.audio_commands is not None:
