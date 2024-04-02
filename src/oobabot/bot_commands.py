@@ -35,6 +35,7 @@ class BotCommands:
         self.decide_to_respond = decide_to_respond
         self.repetition_tracker = repetition_tracker
         self.persona = persona
+        self.include_lobotomize_response = discord_settings["include_lobotomize_response"]
         self.reply_in_thread = discord_settings["reply_in_thread"]
         self.template_store = template_store
         self.ooba_client = ooba_client
@@ -258,15 +259,6 @@ class BotCommands:
                 channel_name,
             )
 
-            # find the current message in this channel
-            # tell the Repetition Tracker to hide messages
-            # before this message
-            async for message in channel.history(limit=1):
-                self.repetition_tracker.hide_messages_before(
-                    channel_id=channel.id,
-                    message_id=message.id,
-                )
-
             response = self.template_store.format(
                 template_name=templates.Templates.COMMAND_LOBOTOMIZE_RESPONSE,
                 format_args={
@@ -279,6 +271,18 @@ class BotCommands:
                 silent=True,
                 suppress_embeds=True,
             )
+            # find the current message in this channel or the
+            # message before that if we're including our response.
+            # tell the Repetition Tracker to hide messages
+            # before this message
+            history_limit = 2 if self.include_lobotomize_response else 1
+            if not self.include_lobotomize_response:
+                fancy_logger.get().debug("Excluding bot response from context.")
+            async for message in channel.history(limit=history_limit):
+                self.repetition_tracker.hide_messages_before(
+                    channel_id=channel.id,
+                    message_id=message.id,
+                )
 
         fancy_logger.get().debug(
             "Registering commands, sometimes this takes a while..."

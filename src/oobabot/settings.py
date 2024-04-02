@@ -398,6 +398,20 @@ class Settings:
         )
         self.discord_settings.add_setting(
             oesp.ConfigSetting[bool](
+                name="include_lobotomize_response",
+                default=True,
+                description_lines=[
+                    textwrap.dedent(
+                        """
+                        Whether or not to include the bot's /lobotomize response
+                        in the history following the command.
+                        """
+                    )
+                ],
+            )
+        )
+        self.discord_settings.add_setting(
+            oesp.ConfigSetting[bool](
                 name="ignore_dms",
                 default=False,
                 description_lines=[
