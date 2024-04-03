@@ -15,6 +15,7 @@ import pysbd.utils
 
 from oobabot import fancy_logger
 from oobabot import http_client
+from oobabot import templates
 
 
 class MessageSplitter(abc.ABC):
@@ -141,6 +142,7 @@ class OobaClient(http_client.SerializedHttpClient):
     def __init__(
         self,
         settings: typing.Dict[str, typing.Any],
+        template_store: templates.TemplateStore,
     ):
         super().__init__(self.SERVICE_NAME, settings["base_url"])
         self.total_response_tokens = 0
@@ -156,6 +158,7 @@ class OobaClient(http_client.SerializedHttpClient):
             self.fn_new_splitter = lambda: RegexSplitter(self.message_regex)
         else:
             self.fn_new_splitter = SentenceSplitter
+        self.template_store = template_store
 
     def on_ready(self):
         """
@@ -189,30 +192,51 @@ class OobaClient(http_client.SerializedHttpClient):
         Taken from the yaml `stopping_strings` within our
         response_params.
         """
-        return self.request_params.get("stopping_strings", [])
+        if self.use_openai:
+            param_name = "stop"
+        else:
+            param_name = "stopping_strings"
+        stopping_strings = self.request_params.get(param_name, [])
 
-    async def request_by_message(self, prompt: str) -> typing.AsyncIterator[str]:
+        sequence_templates = [
+            templates.Templates.SYSTEM_SEQUENCE_PREFIX,
+            templates.Templates.SYSTEM_SEQUENCE_SUFFIX,
+            templates.Templates.USER_SEQUENCE_PREFIX,
+            templates.Templates.USER_SEQUENCE_SUFFIX,
+        ]
+        for sequence_template in sequence_templates:
+            stopping_string = self.template_store.format(
+                sequence_template,
+                {},
+            ).strip()
+            if stopping_string and stopping_string not in stopping_strings:
+                stopping_strings.append(stopping_string)
+    
+        return stopping_strings
+
+    async def request_by_message(self, prompt: str, stopping_strings: typing.List[str]) -> typing.AsyncIterator[str]:
         """
         Yields individual messages from the response as it arrives.
         These can be split by a regex or by sentence.
         """
         splitter = self.fn_new_splitter()
-        async for new_token in self.request_by_token(prompt):
+        async for new_token in self.request_by_token(prompt, stopping_strings):
             for sentence in splitter.next(new_token):
                 # remove "### Assistant: " from strings
                 if sentence.startswith("### Assistant: "):
                     sentence = sentence[len("### Assistant: ") :]
                 yield sentence
 
-    async def request_as_string(self, prompt: str) -> str:
+    async def request_as_string(self, prompt: str, stopping_strings: typing.List[str]) -> str:
         """
         Yields the entire response as a single string.
         """
-        return "".join([token async for token in self.request_by_token(prompt)])
+        return "".join([token async for token in self.request_by_token(prompt, stopping_strings)])
 
     async def request_as_grouped_tokens(
         self,
         prompt: str,
+        stopping_strings: typing.List[str],
         interval: float = 0.2,
     ) -> typing.AsyncIterator[str]:
         """
@@ -221,7 +245,7 @@ class OobaClient(http_client.SerializedHttpClient):
 
         last_response = time.perf_counter()
         tokens = ""
-        async for token in self.request_by_token(prompt):
+        async for token in self.request_by_token(prompt, stopping_strings):
             if token == SentenceSplitter.END_OF_INPUT:
                 if tokens:
                     yield tokens
@@ -241,23 +265,24 @@ class OobaClient(http_client.SerializedHttpClient):
             headers = {"accept": "application/json"}
 
             async with session.post(url, data=json.dumps({}), headers=headers) as response:
-               response_text = await response.text()
-               print(response_text)
-               return response_text
-    async def request_by_token(self, prompt: str) -> typing.AsyncIterator[str]:
+                response_text = await response.text()
+                print(response_text)
+                return response_text
+
+    async def request_by_token(self, prompt: str, stopping_strings: typing.List[str]) -> typing.AsyncIterator[str]:
         """
         Yields each token of the response as it arrives.
         """
         if self.use_openai:
             # Directly iterate over the async generator
-            async for token in self._request_by_token_openai(prompt):
+            async for token in self._request_by_token_openai(prompt, stopping_strings):
                 yield token
         else:
             # The Ooba API request is already an async generator
-            async for token in self._request_by_token_ooba(prompt):
+            async for token in self._request_by_token_ooba(prompt, stopping_strings):
                 yield token
 
-    async def _request_by_token_openai(self, prompt: str) -> typing.AsyncIterator[str]:
+    async def _request_by_token_openai(self, prompt: str, stopping_strings: typing.List[str]) -> typing.AsyncIterator[str]:
         """
         Yields the response from the Cohere API by sentences.
         """
@@ -276,11 +301,18 @@ class OobaClient(http_client.SerializedHttpClient):
         }
 
         request.update(self.request_params)
-        #print(request)
+        # and then add our additional runtime-generated stopping strings, if any
+        if stopping_strings:
+            request["stop"] = self.request_params["stop"] + stopping_strings
+        # The real OpenAI Completions and Chat Completions API have a limit of 4 stop sequences
+        if "api.openai.com" in self.openai_endpoint and len(request["stop"]) > 4:
+            request["stop"] = request["stop"][:3]
+            fancy_logger.get().debug("Real OpenAI API in use, truncating to 4 stopping strings as per the API limit.")
+
+        fancy_logger.get().debug("Using stop sequences: %s", ", ".join(request["stop"]).replace("\n", "\\n"))
 
         async with aiohttp.ClientSession() as session:
             async with session.post(self.openai_endpoint, headers=headers, json=request, verify_ssl=False) as response:
-                #print(response)
                 if response.status != 200:
                     response_text = await response.text()
                     raise http_client.OobaHttpClientError(
@@ -297,7 +329,6 @@ class OobaClient(http_client.SerializedHttpClient):
                         )
                         print(f"Prompt:\n{str(request['prompt']).encode('utf-8')}")
                 async for line in response.content:
-                    #print(line)
                     decoded_line = line.decode('utf-8').strip()
                     if decoded_line.startswith("data: "):
                         decoded_line = decoded_line[6:]  # Strip "data: "
@@ -340,7 +371,7 @@ class OobaClient(http_client.SerializedHttpClient):
 
 
 
-    async def _request_by_token_ooba(self, prompt: str) -> typing.AsyncIterator[str]:
+    async def _request_by_token_ooba(self, prompt: str, stopping_strings: typing.List[str]) -> typing.AsyncIterator[str]:
         """
         Yields each token of the response as it arrives from the Ooba API.
         """           
@@ -350,6 +381,9 @@ class OobaClient(http_client.SerializedHttpClient):
             "prompt": prompt,
         }
         request.update(self.request_params)
+        if stopping_strings:
+            request["stopping_strings"] = self.request_params["stopping_strings"] + stopping_strings
+            fancy_logger.get().debug("Using stopping strings: %s", request["stopping_strings"])
 
         async with self._get_session().ws_connect(
             self.OOBABOOGA_STREAMING_URI_PATH

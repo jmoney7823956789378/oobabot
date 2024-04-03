@@ -468,7 +468,22 @@ class Settings:
             )
         )
         self.discord_settings.add_setting(
-            oesp.ConfigSetting[int](
+            oesp.ConfigSetting[bool](
+                name="prevent_impersonation",
+                default=False,
+                description_lines=[
+                    textwrap.dedent(
+                        """
+                        Prevent impersonation by automatically adding the display names
+                        of the members in the recent message cache (up to the history
+                        limit, or 4 sequences if using the real OpenAI API).
+                        """
+                    )
+                ],
+            )
+        )
+        self.discord_settings.add_setting(
+            oesp.ConfigSetting[bool](
                 name="stream_responses",
                 default=False,
                 description_lines=[
@@ -778,6 +793,7 @@ class Settings:
                 include_in_argparse=False,
             )
         )
+
         ###########################################################
         # Vision API Settings
         self.vision_api_settings = oesp.ConfigSettingGroup("Vision API")

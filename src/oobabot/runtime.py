@@ -51,6 +51,7 @@ class Runtime:
 
         self.ooba_client = ooba_client.OobaClient(
             settings=settings.oobabooga_settings.get_all(),
+            template_store = self.template_store,
         )
 
         ########################################################
