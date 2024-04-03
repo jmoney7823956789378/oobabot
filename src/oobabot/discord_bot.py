@@ -65,6 +65,7 @@ class DiscordBot(discord.Client):
         self.ignore_dms = discord_settings["ignore_dms"]
         self.reply_in_thread = discord_settings["reply_in_thread"]
         self.stop_markers = discord_settings["stop_markers"]
+        self.prevent_impersonation = discord_settings["prevent_impersonation"]
         self.stream_responses = discord_settings["stream_responses"]
         self.stream_responses_speed_limit = discord_settings["stream_responses_speed_limit"]
         self.vision_api_url = vision_api_settings["vision_api_url"]
@@ -472,10 +473,38 @@ class DiscordBot(discord.Client):
         #  it repeated a previous response and we're throttling it
         aborted_by_us = False
         sent_message_count = 0
+
+        stopping_strings = []
+        if self.prevent_impersonation:
+            # Populate a list of stopping strings using the display names of the
+            # members who posted most recently, up to the history limit
+            recent_members = []
+
+            for message in recent_messages_list:
+                if not message.author_is_bot and message.author_name not in recent_members:
+                    recent_members.append(message.author_name)
+
+            for member_name in recent_members:
+                stopping_string = "\n" + self.template_store.format(
+                        templates.Templates.USER_PROMPT_HISTORY_BLOCK,
+                        {
+                            templates.TemplateToken.USER_NAME: self.template_store.format(
+                                templates.Templates.USER_NAME,
+                                {
+                                    templates.TemplateToken.NAME: member_name,
+                                },
+                            ),
+                            templates.TemplateToken.MESSAGE: "",
+                        },
+                    ).strip()
+                stopping_strings.append(stopping_string)
+
         try:
             if self.stream_responses:
                 generator = self.ooba_client.request_as_grouped_tokens(
-                    prompt_prefix, interval=self.stream_responses_speed_limit
+                    prompt_prefix,
+                    stopping_strings,
+                    interval=self.stream_responses_speed_limit,
                 )
                 last_sent_message = await self._render_streaming_response(
                     generator,
@@ -489,7 +518,7 @@ class DiscordBot(discord.Client):
                     sent_message_count = 1
             else:
                 if self.dont_split_responses:
-                    response = await self.ooba_client.request_as_string(prompt_prefix)
+                    response = await self.ooba_client.request_as_string(prompt_prefix, stopping_strings)
                     (
                         last_sent_message,
                         aborted_by_us,
@@ -507,7 +536,8 @@ class DiscordBot(discord.Client):
                     sent_message_count = 0
                     last_sent_message = None
                     async for sentence in self.ooba_client.request_by_message(
-                        prompt_prefix
+                        prompt_prefix,
+                        stopping_strings,
                     ):
                         (
                             sent_message,
