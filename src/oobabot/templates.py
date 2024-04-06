@@ -187,8 +187,6 @@ class TemplateStore:
         ),
         Templates.USER_PROMPT_HISTORY_BLOCK: (
             [
-                TemplateToken.USER_SEQUENCE_PREFIX,
-                TemplateToken.USER_SEQUENCE_SUFFIX,
                 TemplateToken.MESSAGE,
                 TemplateToken.USER_NAME,
             ],
@@ -200,8 +198,6 @@ class TemplateStore:
         ),
         Templates.BOT_PROMPT_HISTORY_BLOCK: (
             [
-                TemplateToken.BOT_SEQUENCE_PREFIX,
-                TemplateToken.BOT_SEQUENCE_SUFFIX,
                 TemplateToken.MESSAGE,
                 TemplateToken.BOT_NAME,
             ],
