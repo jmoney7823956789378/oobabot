@@ -258,9 +258,9 @@ class DiscordBot(discord.Client):
                 await self._handle_response(
                     message, raw_message, is_summon_in_public_channel, image_descriptions
                 )
-        except discord.DiscordException as err:
-            fancy_logger.get().error(
-               "Exception while processing message: %s", err, exc_info=True
+      except discord.DiscordException as err:
+         fancy_logger.get().error(
+            "Exception while processing message: %s", err, exc_info=True
             )
     async def _handle_response(
          self,
