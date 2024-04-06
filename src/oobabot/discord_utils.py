@@ -50,7 +50,6 @@ def discord_message_to_generic_message(
     """
     Convert a discord message to a GenericMessage or subclass thereof
     """
-
     body_text = raw_message.content
 
     generic_args = {

@@ -694,7 +694,6 @@ class Settings:
                default="",
                description_lines=[
                      "Model to use (supported by some endpoints), otherwise leave blank. Example for openrouter: mistralai/mistral-7b-instruct:free",
-                     "OpenAI API completions endpoint. Defaults to the official OpenAI API URL.",
                ],
             )
         )
