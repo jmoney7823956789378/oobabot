@@ -17,7 +17,7 @@ from oobabot import fancy_logger
 from oobabot import runtime
 from oobabot import settings
 from oobabot import types
-from oobabot import voice_client
+#from oobabot import voice_client
 
 
 class Oobabot:

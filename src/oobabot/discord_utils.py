@@ -32,7 +32,7 @@ def get_channel_name(channel: discord.abc.Messageable) -> str:
     if isinstance(channel, discord.DMChannel):
         return "-DM-"
     if isinstance(channel, discord.GroupChannel):
-        return "-GROUP-DM-"
+        return "-GROUP-DM- #" + channel.name
     return "-Unknown-"
 
 
@@ -46,10 +46,11 @@ def sanitize_string(raw_string: str) -> str:
 
 def discord_message_to_generic_message(
     raw_message: discord.Message,
-) -> typing.Union[types.GenericMessage, types.ChannelMessage, types.DirectMessage]:
+) -> typing.Union[types.GenericMessage, types.ChannelMessage, types.DirectMessage, types.GroupMessage]:
     """
     Convert a discord message to a GenericMessage or subclass thereof
     """
+
     body_text = raw_message.content
 
     generic_args = {
@@ -63,19 +64,13 @@ def discord_message_to_generic_message(
         "send_timestamp": raw_message.created_at.timestamp(),
         "reference_message_id": raw_message.reference.message_id
         if raw_message.reference
-        else "",
+        else None,
     }
     if isinstance(raw_message.channel, discord.DMChannel):
         return types.DirectMessage(**generic_args)
-    if isinstance(
-        raw_message.channel,
-        (
-            discord.TextChannel,
-            discord.GroupChannel,
-            discord.Thread,
-            discord.VoiceChannel,
-        ),
-    ):
+    elif isinstance(raw_message.channel, discord.GroupChannel):
+        return types.GroupMessage(mentions=[mention.id for mention in raw_message.mentions], **generic_args)
+    elif isinstance(raw_message.channel, discord.abc.GuildChannel):
         return types.ChannelMessage(
             mentions=[mention.id for mention in raw_message.mentions],
             **generic_args,
@@ -85,7 +80,6 @@ def discord_message_to_generic_message(
         + f"unsolicited replies disabled.: {raw_message.channel}"
     )
     return types.GenericMessage(**generic_args)
-
 
 def replace_mention_ids_with_names(
     generic_message: types.GenericMessage,
@@ -126,7 +120,8 @@ def dm_user_id_to_name(
         print(f"bot_user_id={bot_user_id}, user_id={user_id}")
         if user_id == bot_user_id:
             return f"@{bot_name}"
-        return match.group(0)
+        else: return f"@{user_id}"
+        #return match.group(0)
 
     return _replace_user_id_mention
 
@@ -147,11 +142,8 @@ def guild_user_id_to_name(
     return _replace_user_id_mention
 
 
-def get_intents() -> discord.Intents:
-    intents = discord.Intents.default()
-    intents.message_content = True
-    intents.members = True
-    return intents
+def get_intents():
+    return
 
 
 async def test_discord_token(discord_token: str) -> bool:

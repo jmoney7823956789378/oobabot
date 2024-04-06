@@ -168,22 +168,34 @@ class DiscordBot(discord.Client):
             )
 
     async def on_message(self, raw_message: discord.Message) -> None:
-        """
-        Called when a message is received from Discord.
-
-        This method is called for every message that the bot can see.
-        It decides whether to respond to the message, and if so,
-        calls _handle_response() to generate a response.
-
-        :param raw_message: The raw message from Discord.
-        """
-
-
-        # If the message is not a command, proceed with regular message handling
-        try:
+      """
+      Called when a message is received from Discord.
+   
+      This method is called for every message that the bot can see.
+      It decides whether to respond to the message, and if so,
+      calls _handle_response() to generate a response.
+   
+      :param raw_message: The raw message from Discord.
+      """
+      try:
+            # Check if the message starts with $ and the AI name
+            if raw_message.content.startswith("$" + self.persona.ai_name.lower()):
+               
+               # Extract the command after the AI name
+               command = raw_message.content[len("$" + self.persona.ai_name):].strip()
+               print(command)
+               fancy_logger.get().debug("Bot command " + command + " attempted")
+               # Pass the command to the bot_commands for handling
+               await self.bot_commands.handle_command(command, raw_message)
+               return  # Return early as we do not want to process the command as a regular message
+      except Exception as e:
+            fancy_logger.get().error("Error handling command: %s", e, exc_info=True)
+   
+      # If the message is not a command, proceed with regular message handling
+      try:
             message = discord_utils.discord_message_to_generic_message(raw_message)
             should_respond, is_summon = self.decide_to_respond.should_reply_to_message(
-                self.ai_user_id, message
+               self.ai_user_id, message
             )
             if not should_respond:
                 return
@@ -236,20 +248,20 @@ class DiscordBot(discord.Client):
                                 except Exception as e:
                                     fancy_logger.get().error("Error processing image: %s", e, exc_info=True)
 
-            is_summon_in_public_channel = is_summon and isinstance(
-                message,
-                types.ChannelMessage,
-            )
 
+            is_summon_in_public_channel = is_summon and isinstance(
+               message,
+               types.ChannelMessage,
+            )
+   
             async with raw_message.channel.typing():
                 await self._handle_response(
                     message, raw_message, is_summon_in_public_channel, image_descriptions
                 )
         except discord.DiscordException as err:
             fancy_logger.get().error(
-                "Exception while processing message: %s", err, exc_info=True
+               "Exception while processing message: %s", err, exc_info=True
             )
-
     async def _handle_response(
         self,
         message: types.GenericMessage,
@@ -276,14 +288,15 @@ class DiscordBot(discord.Client):
                 image_descriptions=image_descriptions
         )
         if result is None:
+
             # we failed to create a thread that the user could
             # read our response in, so we're done here.  Abort!
             return
-        message_task, response_channel = result
+      message_task, response_channel = result
 
-        # log the mention, now that we know the channel we
-        # want to monitor later to continue to conversation
-        if isinstance(response_channel, (discord.Thread, discord.abc.GuildChannel)):
+      # log the mention, now that we know the channel we
+      # want to monitor later to continue to conversation
+      if isinstance(response_channel, (discord.Thread, discord.abc.GuildChannel)):
             if is_summon_in_public_channel:
                 self.decide_to_respond.log_mention(
                     response_channel.id,
@@ -315,6 +328,7 @@ class DiscordBot(discord.Client):
                         stack_info=True,
                     )
                     raise task.exception()
+
 
     async def _send_text_response(
         self,
@@ -399,11 +413,11 @@ class DiscordBot(discord.Client):
         fancy_logger.get().debug(
             "Request from %s in %s", message.author_name, message.channel_name
         )
-
+    
         repeated_id = self.repetition_tracker.get_throttle_message_id(
             response_channel_id
         )
-
+    
         # determine if we're responding to a specific message that
         # summoned us.  If so, find out what message ID that was, so
         # that we can ignore all messages sent after it (as not to
@@ -415,7 +429,7 @@ class DiscordBot(discord.Client):
             if message.channel_id == response_channel_id:
                 reference = raw_message.to_reference()
             ignore_all_until_message_id = raw_message.id
-
+    
         recent_messages = await self._recent_messages_following_thread(
             channel=response_channel,
             num_history_lines=self.prompt_generator.history_lines,
@@ -443,6 +457,7 @@ class DiscordBot(discord.Client):
         recent_messages_async_iter = list_to_async_iterator(recent_messages_list)
 
         # Generate the prompt prefix using the modified recent messages list
+
         if isinstance(response_channel, discord.abc.GuildChannel):
             guild_name = response_channel.guild.name
         elif isinstance(response_channel, discord.GroupChannel):
@@ -455,6 +470,7 @@ class DiscordBot(discord.Client):
             guild_name=str(guild_name),
             response_channel=str(response_channel),
         )
+
 
 
         this_response_stat = self.response_stats.log_request_arrived(prompt_prefix)

@@ -161,7 +161,7 @@ class Runtime:
         False otherwise.
         """
 
-        for client in [self.ooba_client, self.stable_diffusion_client]:
+        for client in [self.ooba_client, self.stable_diffusion_client]: # add stupid tts in here later
             if client is None:
                 continue
 
@@ -208,17 +208,17 @@ class Runtime:
                 await self.discord_bot.start(self.discord_token)
                 fancy_logger.get().info("Discord bot exited.")
 
-            except discord.errors.PrivilegedIntentsRequired as err:
-                fancy_logger.get().warning("Could not log in to Discord: %s", err)
-                fancy_logger.get().warning(
-                    "The bot token you provided does not have the required "
-                    + "gateway intents.  Did you remember to enable both "
-                    + "'SERVER MEMBERS INTENT' and 'MESSAGE CONTENT INTENT' "
-                    + "in the bot's settings on Discord?"
-                )
-                raise OobabotRuntimeError(
-                    "Could not log in to Discord: intents not set"
-                ) from err
+            # except discord.errors.PrivilegedIntentsRequired as err:
+            #     fancy_logger.get().warning("Could not log in to Discord: %s", err)
+            #     fancy_logger.get().warning(
+            #         "The bot token you provided does not have the required "
+            #         + "gateway intents.  Did you remember to enable both "
+            #         + "'SERVER MEMBERS INTENT' and 'MESSAGE CONTENT INTENT' "
+            #         + "in the bot's settings on Discord?"
+            #     )
+            #     raise OobabotRuntimeError(
+            #         "Could not log in to Discord: intents not set"
+            #     ) from err
 
             except discord.LoginFailure as err:
                 fancy_logger.get().warning("Could not log in to Discord: %s", err)

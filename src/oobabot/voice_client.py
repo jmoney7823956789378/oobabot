@@ -13,7 +13,7 @@ import discord.guild
 import discord.opus
 import discord.state
 import discord.types
-from discord.types import voice  # this is so pylint doesn't complain
+#from discord.types import voice  # this is so pylint doesn't complain
 
 from oobabot import audio_responder
 from oobabot import discrivener

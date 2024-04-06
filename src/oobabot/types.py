@@ -25,6 +25,7 @@ class GenericMessage:
         body_text: str,
         author_is_bot: bool,
         send_timestamp: float,
+        guild_id: typing.Optional[int] = None,
     ):
         self.author_id = author_id
         self.author_name = author_name
@@ -35,10 +36,16 @@ class GenericMessage:
         self.send_timestamp = send_timestamp
         self.channel_id = channel_id
         self.channel_name = channel_name
+        self.guild_id = guild_id
 
     def is_empty(self) -> bool:
         return not self.body_text.strip()
-
+    @property
+    def is_guild_message(self) -> bool:
+        """
+        Returns whether this message is from a guild (server).
+        """
+        return hasattr(self, 'guild_id') and self.guild_id is not None
 
 class DirectMessage(GenericMessage):
     """
@@ -64,6 +71,21 @@ class ChannelMessage(GenericMessage):
     def is_mentioned(self, user_id: int) -> bool:
         return user_id in self.mentions
 
+class GroupMessage(GenericMessage):
+   """
+   Represents a message sent in a group chat.
+   """
+   def __init__(
+        self,
+        /,
+        mentions: typing.List[int],
+        **kwargs,
+    ):
+        super().__init__(**kwargs)  # type: ignore
+        self.mentions = mentions
+
+   def is_mentioned(self, user_id: int) -> bool:
+        return user_id in self.mentions
 
 class FancyAuthor:
     """
