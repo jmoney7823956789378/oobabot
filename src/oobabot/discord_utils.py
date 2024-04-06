@@ -124,6 +124,24 @@ def dm_user_id_to_name(
 
     return _replace_user_id_mention
 
+def group_user_id_to_name(
+   guild: discord.GroupChannel,
+) -> typing.Callable[["re.Match[str]"], str]:
+   def _replace_user_id_mention(match: typing.Match[str]) -> str:
+      user_id = int(match.group(1))
+      member = None
+      for user in guild.recipients:
+         if user.id == user_id:
+            member = user
+            break
+      if member is None:
+         return match.group(0)
+      display_name = member.display_name
+      if " " in display_name:
+         display_name = f'"{display_name}"'
+      return f"@{display_name}"
+
+   return _replace_user_id_mention
 
 def guild_user_id_to_name(
     guild: discord.Guild,
